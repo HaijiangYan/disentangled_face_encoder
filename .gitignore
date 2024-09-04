@@ -1,0 +1,10 @@
+*.ipynb
+__pycache__
+**/.ipynb_checkpoints/
+datasets/jaffe/
+datasets/MH-FED_Images/
+*.pptx
+**/*.Identifier
+**/*.npy
+**/*.pt
+togetherai-zhu-personal.txt
