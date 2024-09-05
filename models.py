@@ -226,16 +226,38 @@ class decoder(nn.Module):
         return self.img
 
 
+class classifier(nn.Module):
+    '''
+    classifier head
+    '''
+    def __init__(self, latent_dim=3, n_class=7):
+        super(classifier, self).__init__()
+        self.fc = nn.Sequential(
+            nn.Linear(latent_dim, 256),
+            nn.ReLU(), 
+
+            nn.Linear(256, n_class)
+        )
+
+        self.logit = nn.Softmax(dim=1)
+
+    def forward(self, fea_in):
+        self.fc_out = self.fc(fea_in)
+        self.logit_out = self.logit(self.fc_out)
+        return self.logit_out
+
+
 class AE(nn.Module):
     '''
     the class of auto-encoder
     '''
-    def __init__(self, latent_dim=3, Nb=3, radius=1.0, GRAY=False):
+    def __init__(self, latent_dim=3, n_class=7, Nb=3, radius=1.0, GRAY=False):
         super(AE, self).__init__()
         # encoder and decoder
         self.radius = radius
         self.encoder = encoder(latent_dim=latent_dim, GRAY=GRAY)
         self.decoder = decoder(latent_dim=latent_dim, Nb=Nb, GRAY=GRAY)
+        self.classifier = classifier(latent_dim=latent_dim, n_class=n_class)
 
     def reparameterize(self, z_mean, radius):
         gaussian_smooth = torch.distributions.normal.Normal(z_mean, torch.ones_like(z_mean)*radius)
@@ -258,12 +280,61 @@ class AE(nn.Module):
         fea = self.encoder(img)
         gaussian_smooth = self.reparameterize(fea, self.radius)
         new_fea = gaussian_smooth.rsample()
+
+        class_img = self.classifier(new_fea)
         rec_img = self.decoder(new_fea)
+        return rec_img, class_img
+
+
+class dualAE(nn.Module):
+    '''
+    the class of auto-encoder
+    '''
+    def __init__(self, latent_dim=3, n_class_emo=7, n_class_id=10, Nb=3, radius=1.0, GRAY=False):
+        super(dualAE, self).__init__()
+        # encoder and decoder
+        self.radius = radius
+        self.encoder_emo = encoder(latent_dim=latent_dim, GRAY=GRAY)
+        self.encoder_id = encoder(latent_dim=latent_dim, GRAY=GRAY)
+
+        self.decoder = decoder(latent_dim=latent_dim*2, Nb=Nb, GRAY=GRAY)
+
+        self.classifier_emo = classifier(latent_dim=latent_dim, n_class=n_class_emo)
+        self.classifier_id = classifier(latent_dim=latent_dim, n_class=n_class_id)
+
+    def reparameterize(self, z_mean, radius):
+        gaussian_smooth = torch.distributions.normal.Normal(z_mean, torch.ones_like(z_mean)*radius)
+        return gaussian_smooth
+
+    def embed(self, img):
+        fea_emo = self.encoder_emo(img)
+        fea_id = self.encoder_id(img)
+        return fea_emo, fea_id
+
+    def gen_img(self, img):
+        fea_emo = self.encoder_emo(img)
+        fea_id = self.encoder_id(img)
+        rec_img = self.decoder(torch.cat((fea_emo, fea_id), 1))
         return rec_img
 
+    def gen_img_from_embedding(self, fea_emo, fea_id):
+        rec_img = self.decoder(torch.cat((fea_emo, fea_id), 1))
+        return rec_img
 
+    def forward(self, img):
+        fea_emo = self.encoder_emo(img)
+        fea_id = self.encoder_id(img)
 
+        gaussian_smooth_emo = self.reparameterize(fea_emo, self.radius)
+        gaussian_smooth_id = self.reparameterize(fea_id, self.radius)
+        new_fea_emo = gaussian_smooth_emo.rsample()
+        new_fea_id = gaussian_smooth_id.rsample()
 
+        class_emo = self.classifier_emo(new_fea_emo)
+        class_id = self.classifier_id(new_fea_id)
+        new_fea = torch.cat((new_fea_emo, new_fea_id), 1)
+        rec_img = self.decoder(new_fea)
+        return rec_img, class_emo, class_id
 
 
 

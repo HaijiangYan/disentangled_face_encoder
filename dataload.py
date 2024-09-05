@@ -17,6 +17,8 @@ class MetaFace(data.Dataset):
         '''
 
         emo_map = {'Neutral':0, 'Sadness':1, 'Joy':2, 'Anger':3, 'Disgust':4, 'Fear':5, 'Surprise':6}
+        id_map = {'Amelia':0, 'Aoi':1, 'Bernice':2, 'Ettore':3, 'Hadley':4, 
+        'Hana':5, 'Myles':6, 'Natalia':7, 'Seneca':8, 'Taro':9}
 
         self.GRAY = GRAY_flag
         self.size = size
@@ -25,6 +27,7 @@ class MetaFace(data.Dataset):
 
         self.img_dir = []
         self.emo_labels = []
+        self.id_labels = []
         self.id_dir = []
         for identity in os.listdir(path):
             id_dir = os.path.join(path, identity)
@@ -33,11 +36,14 @@ class MetaFace(data.Dataset):
             for emo in os.listdir(id_dir):
                 emo_dir = os.path.join(id_dir, emo)
                 for img in os.listdir(emo_dir):
-                    img_dir = os.path.join(emo_dir, img)
-                    self.img_dir.append(img_dir)
-                    self.emo_labels.append(emo_map[emo])
-                    self.id_dir.append(id_neutral_face)
+                    if os.path.splitext(img)[-1] == '.jpg':
+                        img_dir = os.path.join(emo_dir, img)
+                        self.img_dir.append(img_dir)
+                        self.emo_labels.append(emo_map[emo])
+                        self.id_labels.append(id_map[identity])
+                        self.id_dir.append(id_neutral_face)
         self.emo_labels = torch.tensor(self.emo_labels)
+        self.id_labels = torch.tensor(self.id_labels)
 
         # transform for face dataset
         self.transform_basic = transforms.Compose([
@@ -59,10 +65,11 @@ class MetaFace(data.Dataset):
         # load face image and label and identity images
         face_input = self.img_prepro(self.img_dir[idx], self.transform_advance, self.GRAY)
         emo = self.emo_labels[idx].long()
+        id_ = self.id_labels[idx].long()
         face_id = self.img_prepro(self.id_dir[idx], self.transform_basic, self.GRAY)
         face_emo = self.img_prepro(self.img_dir[idx], self.transform_basic, self.GRAY)
 
-        return face_input, emo, face_id, face_emo
+        return face_input, emo, id_, face_id, face_emo
 
 
     def __len__(self):
